@@ -17,7 +17,6 @@ from matplotlib import animation
 def setup_board():
 
     global board
-
     board = np.random.random((w, h))
     board = np.where(board > 0.7, 1, 0 )   # random
 
@@ -28,7 +27,6 @@ def setup_board():
 def count_neighbors():
 
     global board
-
     kernal = [[1, 1, 1], [1, 0, 1], [1, 1, 1]]
     n = signal.convolve2d(board, kernal)
 
@@ -55,13 +53,16 @@ def update_board(n, b):
 
 
 
-
-w = 60
-h = 60
+#############################################################################
+frames = 1000       # number of animation steps to take
+sleep = 50         # time between frames
+w = 80              # width, height ( number of cells in each direction)
+h = 80
 
 
 # random setup
 board = setup_board()
+
 '''
 # glider gun
 board = np.zeros((w,h))
@@ -79,12 +80,6 @@ board[10:19,1:37] = glider_gun
 '''
 
 
-def init():
-
-    global board 
-
-    im.set_data(board)
-    return (im, )
 
 
 def animate(i):
@@ -94,14 +89,10 @@ def animate(i):
     neighbors = count_neighbors()
     new_board = update_board(neighbors, board)
     board = new_board
-
+    ax.clear()
     im = ax.imshow(new_board, cmap=plt.cm.magma, interpolation='nearest')
-
     return (im, )
-
-
-
-
+    
 
 
 
@@ -109,11 +100,12 @@ def animate(i):
 figure = plt.figure(figsize=(12,12))
 ax = figure.add_subplot(111)
 im = ax.imshow(board, cmap=plt.cm.binary, interpolation='nearest')
-im.set_clim(-0.05, 1 )
 
 
+# run program
+#anim = animation.FuncAnimation(figure, animate, interval=sleep, blit=False)
+anim = animation.FuncAnimation(figure, animate, interval=sleep, blit=False)
 
-anim = animation.FuncAnimation(figure, animate, init_func=init, frames=100, interval=1000, blit=False)
 
 
 plt.title("Conway's Life")  
