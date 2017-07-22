@@ -16,8 +16,6 @@ from matplotlib import animation
 ###########################################################################
 # utilities
 ###########################################################################
-
-
 # Returns a tuple of binary ints representing the decimal n in binary.  
 # For example, binary(18,8) returns (0,1,0,0,1,0,0,0)
 def binary(n, digits):
@@ -75,11 +73,6 @@ class CellularAutomata(object):
 
 
 
-    # Executes the given number of time steps.
-    def loop(self, steps=1):
-        [self.step() for i in range(steps)]
-
-
     # Executes one time step by computing the next row of the array.
     def step(self):
 
@@ -105,8 +98,10 @@ rule = 18
 n_steps = 100
 sleep = 50
 
+
+# set up rule lookup table and array for image
 ca = CellularAutomata(rule, n_steps)
-ca.start_single()
+ca.start_single()       # start with 1 in center of top row, could also chose random 
 
 
 # animation loop computes one row at a time for display
@@ -118,8 +113,6 @@ def animate(i):
 
     return (im, )
     
-
-
 
 
 # set up graphics
