@@ -68,7 +68,7 @@ class CellularAutomata(object):
     # Start with random values in the top row.
     def start_random(self):
 
-        self.array[0] = numpy.random.random([1,self.m]).round()
+        self.array[0] = np.random.random([1,self.width]).round()
         self.next += 1
 
 
@@ -94,15 +94,15 @@ class CellularAutomata(object):
 
 
 ########################################
-rule = 18
+rule = 110
 n_steps = 100
 sleep = 50
 
 
 # set up rule lookup table and array for image
 ca = CellularAutomata(rule, n_steps)
-ca.start_single()       # start with 1 in center of top row, could also chose random 
-
+#ca.start_single()       # start with 1 in center of top row, could also chose random 
+ca.start_random()
 
 # animation loop computes one row at a time for display
 def animate(i):
