@@ -1,350 +1,180 @@
 
+
 # http://github.com/timestocome
 
-# Flocking take 2
-
-# Flocking, herds and schools
-# https://www.siggraph.org/education/materials/HyperGraph/animation/art_life/flocks.htm
-
-# more good stuff
-# https://www.siggraph.org/education/materials/HyperGraph/animation/art_life/art_life0.htm
-# http://www.red3d.com/cwr/papers/1987/SIGGRAPH87.pdf
-
-# Flock is a group of objects that exhibit the general class of polarized (aligned), non-colliding, aggregate motion.
-# Boid is a simulated bird-like object, i.e., it exhibits this type of behavior. It can be a fish, dinosaur, etc.
-
-# 3 rules
-# Collision avoidance: avoid collisions with neighbors or obstacles
-# Velocity Matching: attempt to match velocity (speed and direction) with neighbors
-# Flock centering: attempt to stay close to neighbors
+# Flocking example
+# http://www.red3d.com/cwr/boids/
 
 
 
+import pygame
+import sys
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import animation
-import copy
-
-
-# create a 2d board to use for simulation
-height = 300
-width = height
-
-# how many time steps animation should perform
-n_steps = 10000
-sleep = 1
-
-
-# set number of boids
-n_boids = 140
-
-# distance neighbors are visable
-radius = 30
-
-# max number of pixels moved per time step
-max_speed = 12
 
 
 
+pygame.init()
 
 
-# smoother
-def deg_to_rad(d): return d / 57.3
-def rad_to_deg(r): return r * 57.3
-
-n_directions = 360
-directions = range(0, 360)
-
-############################################################################
-# utilities
-############################################################################
-
-# not optimal but it's a toy problem
-def neighborhood(x, y, boids):
-
-    neighbors = []
-     
-    for b in boids:
-
-        d = b.d % 360
-
-        # see if other boid is close to us
-        dx = np.sqrt( (b.x-x)*(b.x-x) + (b.y-y)*(b.y-y) )
-        
-        # it's inside circle
-        if dx <= radius:
-
-            # see if it's in ~180' of direction we're facing
-            if (d > 45) and (d < 135):    # N  
-                if b.y > y: neighbors.append(b)
-                
-            if (d > 0) and (d < 90):    # NE   equation written out for clarity
-                if b.y > (-1)*b.x + (x+y): neighbors.append(b) 
-                
-            if ((d > 315) and (d < 360)) or ((d > 0) and (d < 45)):    # E 
-                if b.x > x: neighbors.append(b)
-                
-            if (d > 270) and (d < 360):    # SE 
-                if b.y < b.x + (y-x): neighbors.append(b)
-                
-            if (d > 225) and (d < 315):    # S 
-                if b.y < y: neighbors.append(b)
-                    
-            if (d > 180) and (d < 270):    # SW 
-                if b.y < -b.x + (x+y): neighbors.append(b)
-                
-            if (d > 135) and (d < 225):    # W 
-                if b.x < x: neighbors.append(b)
-                
-            if (d < 90) and (d < 180):    # NW
-                if b.y > b.x + (y-x): neighbors.append(b)
-
-
-    return neighbors
+size = width, height = 1000, 1000
+white = 255, 255, 255
+screen = pygame.display.set_mode(size)
+screen.fill(white)
 
 
 
+# boids
+distance = 100 # max distance at which boid sees neighbors
+separation = 5 # preferred minimum separation between boids
+boids = []
 
 
-    
-
-############################################################################
-# Flocking
-############################################################################
-class Boid(object):
+class Boid():
 
     def __init__(self):
 
-        self.x = np.random.randint(0, width-1)
-        self.y = np.random.randint(0, height-1)
-        self.d = np.random.randint(n_directions)
-        self.v = np.random.randint(max_speed)
+        # set up image
+        self.boid_image = pygame.image.load("images.png")
+        self.boid_rect = self.boid_image.get_rect()
+        self.boid_copy = self.boid_image
+
+        # random starting angle, location, speed
+        self.angle = np.random.randint(360)
         
+        self.x = np.random.randint(width)
+        self.y = np.random.randint(height)
 
-    def update(self, neighbors):
+        self.vx = 0 
+        self.vy = 0
 
-        # adjust to neighbors
-        n_neighbors = len(neighbors)
+        self.speed = np.random.randint(low=2, high=6)
 
-        if n_neighbors > 0:
-
-            dv = 0.
-            dd = np.zeros(n_directions)
-            dx = 0.
-            dy = 0.
-            crowding = 0
-            
-            for n in neighbors:
- 
-                # alignment: get average heading and speed
-                dv += n.v / n_neighbors
-                dd[int(n.d)] += 1
-               
-                        
-                # separation: check for crowding and spread out
-                dr = np.sqrt( (n.x-self.x)*(n.x-self.x) + (n.y-self.y)*(n.y-self.y) )
-                if dr < 5:
-                    crowding += 1
-
-                else:
-                    
-                    # cohesion: center of flock
-                    dx += n.x / n_neighbors
-                    dy += n.y / n_neighbors
+        # move to starting position
+        self.boid_rect = self.boid_rect.move((self.x, self.y))    
+        self.boid_image = pygame.transform.rotate(self.boid_copy, self.angle)
+        self.boid_rect = self.boid_image.get_rect(center=self.boid_rect.center)
 
 
+        # start with no neighbors
+        self.neighbors = []
+
+
+
+    # still need to remove neighbors in blind spot
+    def find_neigbors(self):
+
+        self.neighbors = []
+        flock_heading = 0
+        center_x = 0
+        center_y = 0
+        crowding_heading = 0
+        n_neighbors = -1  # remove self
+        n_crowd = 0
+        
+        
+        for i in range(len(boids)):
+
+            r = np.sqrt( np.square(boids[i].x - self.x) + np.square(boids[i].y - self.y))
+
+            if r < distance:
+                self.neighbors.append(boids[i])
+                center_x += boids[i].x
+                center_y += boids[i].y
+                flock_heading += boids[i].angle
+                n_neighbors += 1
                 
-            # alignment: change heading closer to neighbors
-            popular = np.max(dd)               # find n max agreeing
-            winners = np.argwhere(dd == popular)   # get most popular headings
+                
+                if r < separation:
+                    crowding_heading += boids[i].angle
+                    n_crowd += 1
 
-            if len(winners) > 1:               # if more than one randomly choose one
-                new_idx = np.random.randint(len(winners))
-                self.d = winners[new_idx]
-            else: self.d = np.argmax(dd)      # else just go with single most popular
-
-                        
             
-            # cohesion: move towards center of flock
-            if self.x > dx: dx -= self.v // 2
-            else: dx += self.v 
-
-            if self.y > dy: dy -= self.v // 2
-            else: dy += self.v
+        if n_neighbors > 0:      
+            # get means
+            center_x /= n_neighbors
+            center_y /= n_neighbors
+            flock_heading /= n_neighbors
+       
             
-
-           
+        if n_crowd > 0:
+            crowding_heading /= n_crowd
             
-            #print(' d %d, v %d neighbors %d' %( self.d, self.v, n_neighbors))
-            
-        else:   # no neighbors occasionally decide to change direction or move
-            z = np.random.randint(max_speed * 2)
-            if z % 4 == 0:
-                self.v = z
-                self.d = np.random.randint(n_directions)
-
+        return n_neighbors, flock_heading, center_x, center_y, crowding_heading
 
         
 
-        # move in direction boid is facing
-        dx = int(self.v * np.cos(deg_to_rad(self.d)))
-        self.x += dx
-                  
-        dy = int(self.v * np.sin(deg_to_rad(self.d)))
-        self.y += dy
-
-
-
-        # wrap on or rebound at edges
-        new_d = np.random.randint(n_directions)
-
-        if self.x <= 0:
-            self.x = self.v
-            self.d = new_d
-            
-        if self.y <= 0:
-            self.y = self.v
-            self.d = new_d
-
-        if self.x >= width:
-            self.x = self.v
-            self.d = new_d
-
-        if self.y >= height:
-            self.y = self.v
-            self.d = new_d
-        
+    def move(self):
 
         
-################################################################################
-# run code
-###############################################################################
+        # adjustments for flock
+        n, flock_direction, flock_x, flock_y, crowd_heading = self.find_neigbors()
 
-class FlockingModel(object):
-    
-
-    # set up boids in random locations, at random speeds and directions
-    def __init__(self, n_steps=100):
-        
-        self.n_steps = n_steps
-        self.next = 0
-
-        self.board = np.zeros((height, width))
-        self.boids = []
-
-
-        # randomly place boids on board
-        for i in range(n_boids):
-            new_boid = Boid()
-            self.boids.append(new_boid)
-            self.board[new_boid.x][new_boid.y] = i
-
-
-
-
-
-    # find neighbors and adjust boid speed, direction to mean
-    def check_neighbors(self):
-
-        for i in range(n_boids):      
+        if n > 0:
+            self.angle = (self.angle + flock_direction) // 3
+            self.angle -= crowd_heading // 5
             
-            # get location of this boid
-            boid = self.boids[i]
-            x = boid.x
-            y = boid.y
 
-                        
-            # get neighbors boid can see
-            neighbors = neighborhood(x, y, self.boids)
-            n_neighbors = len(neighbors)
+        # move
+        self.vx = -self.speed * np.sin(self.angle * 0.0174533) 
+        self.vy = -self.speed * np.cos(self.angle * 0.0174533)
+       # print('vx %d, vy %d, angle %d, %lf, speed %d' % (self.vx, self.vy, self.angle, self.angle * 0.0174533, self.speed))
 
-            # adapt speed and heading to local mean
-            boid.update(neighbors)
-               
-            
-            # remove boid from self.board
-            self.board[x][y] = 0
-            
-            # update self. board
-            self.board[boid.x][boid.y] = i
-
+        self.boid_rect = self.boid_rect.move((self.vx, self.vy))
+        self.boid_rect = self.boid_image.get_rect(center=self.boid_rect.center)
 
         
-    # next time step
-    def step(self):
+        # rotate
+        self.angle = (self.angle + 1) % 360
+        self.boid_image = pygame.transform.rotate(self.boid_copy, self.angle)
 
-        self.next += 1
-        self.check_neighbors()
+       
+        # deal with edges
+        if self.boid_rect.center[0] < 0:
+            self.boid_rect = self.boid_rect.move((width-self.vx, self.vy))
+            
+        if self.boid_rect.center[0] > width:
+            self.angle = (self.angle - 30) % 360
+            self.boid_rect = self.boid_rect.move((-2 * self.vx, self.vy))
 
-        # make a copy of the board for animation 
-        new_board = copy.copy(self.board)
+        if self.boid_rect.center[1] < 0:
+            self.boid_rect = self.boid_rect.move((self.vx, height-self.vy))
 
-        return new_board
+        if self.boid_rect.center[1] > height:
+            self.angle = (self.angle + 30) %360
+            self.boid_rect = self.boid_rect.move((self.vx, -2 * self.vy))
+
+            
+        self.boid_image = pygame.transform.rotate(self.boid_copy, self.angle)
+            
+        self.boid_rect = self.boid_rect.move((self.vx, self.vy))
+        self.boid_rect = self.boid_image.get_rect(center=self.boid_rect.center)
+
+        
+
+            
+
+# set up 
+for i in range(50):
+    new_boid = Boid()
+    boids.append(new_boid)
+
 
 
 
 
     
+while True:
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT: sys.exit()
+
+    screen.fill(white)
     
+    for b in range(len(boids)):
 
+        boid = boids[b]
+        boid.move()
+        screen.blit(boid.boid_image, boid.boid_rect)
 
-
-
-
-
-#####################################################################################
-# setup model
-#####################################################################################
-
-flockingModel = FlockingModel(n_steps)
-
-
-
-#####################################################################################
-# animation
-#####################################################################################
-
-# convert game board to an image
-def image_from_array(array):
-
-    z_im = np.zeros((height, width, 3), 'uint8')
-    
-    for i in range(n_boids):
-        x = flockingModel.boids[i].x
-        y = flockingModel.boids[i].y
-        
-        z_im[x][y][0] = 55      # red
-        z_im[x][y][1] = 155     # green 
-        z_im[x][y][2] = 255     # blue
-
-    im = ax.imshow(z_im, interpolation='nearest')
-    return im
-
-
-
-# animation loop computes one row at a time for display
-def animate(i):
-    
-    ax.clear()      # things get very slow if this line is missing
-    im = image_from_array(flockingModel.step())
-
-    return (im, )
-    
-
-
-# set up graphics
-figure = plt.figure(figsize=(12,12))
-ax = figure.add_subplot(111)
-plt.title("Flocking Model")  
-plt.axis('off')   
-
-im = image_from_array(flockingModel.board)
-
-
-
-# run program
-# note: blit=False needed to run on OSX, probably faster if set to True on other platforms
-anim = animation.FuncAnimation(figure, animate, frames=(n_steps-2), interval=sleep, blit=False, repeat=False)
-
-plt.show()
+    pygame.display.flip()
 
